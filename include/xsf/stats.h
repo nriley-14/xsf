@@ -1,5 +1,6 @@
 #pragma once
 
+#include "binom.h"
 #include "cephes/bdtr.h"
 #include "cephes/chdtr.h"
 #include "cephes/const.h"
@@ -544,6 +545,219 @@ XSF_HOST_DEVICE inline double von_mises_cdf(double k, double x) {
 
 XSF_HOST_DEVICE inline float von_mises_cdf(float k, float x) {
     return static_cast<float>(von_mises_cdf(static_cast<double>(k), static_cast<double>(x)));
+}
+
+namespace detail {
+
+    XSF_HOST_DEVICE inline long long int ks_2samp_gcd(long long int a, long long int b) {
+        while (b != 0) {
+            long long int t = a % b;
+            a = b;
+            b = t;
+        }
+        return a;
+    }
+
+    // Python's floor division, which rounds toward negative infinity.
+    XSF_HOST_DEVICE inline long long int ks_2samp_floordiv(long long int a, long long int b) {
+        long long int q = a / b;
+        return (a % b != 0 && ((a < 0) != (b < 0))) ? q - 1 : q;
+    }
+
+    // Round half to even, matching np.round.
+    XSF_HOST_DEVICE inline double ks_2samp_round_half_even(double x) {
+        double r = cxx::floor(x);
+        double diff = x - r;
+        if (diff > 0.5 || (diff == 0.5 && cxx::fmod(r, 2.0) != 0.0)) {
+            r += 1.0;
+        }
+        return r;
+    }
+
+    template <typename WorkMat>
+    XSF_HOST_DEVICE inline double
+    ks_2samp_outer_prob_inside_method(long long int m, long long int n, long long int g, long long int h, WorkMat A) {
+        // Proportion of the integer lattice paths from (0, 0) to (m, n) that do
+        // not stay strictly inside the two diagonals |x/m - y/n| < h / lcm(m, n).
+        // Uses the "inside method" of Hodges, with the recursion changed to
+        // compute 1 - p directly (Viehmann, arXiv:2102.08037).
+        //
+        // Only a sliding window of a single column of the path-count matrix is
+        // kept in A, which needs min(m, n) + 1 entries. Each column is rescaled
+        // as it is computed, so the entries stay in [0, 1].
+        if (m < n) {
+            long long int t = m;
+            m = n;
+            n = t;
+        }
+        long long int mg = m / g;
+        long long int ng = n / g;
+
+        long long int minj = 0;
+        long long int maxj = cxx::min(static_cast<long long int>(cxx::ceil(static_cast<double>(h) / mg)), n + 1);
+        long long int curlen = maxj - minj;
+        long long int lenA = cxx::min(2 * maxj + 2, n + 1);
+
+        for (long long int k = 0; k < lenA; ++k) {
+            A(k) = (k >= minj && k < maxj) ? 0.0 : 1.0;
+        }
+        for (long long int i = 1; i <= m; ++i) {
+            long long int lastminj = minj, lastlen = curlen;
+            minj = cxx::max(static_cast<long long int>(cxx::floor(static_cast<double>(ng * i - h) / mg)) + 1, 0LL);
+            minj = cxx::min(minj, n);
+            maxj = cxx::min(static_cast<long long int>(cxx::ceil(static_cast<double>(ng * i + h) / mg)), n + 1);
+            if (maxj <= minj) {
+                return 1.0;
+            }
+            double val = (minj == 0) ? 0.0 : 1.0;
+            for (long long int jj = 0; jj < maxj - minj; ++jj) {
+                long long int j = jj + minj;
+                val = (A(jj + minj - lastminj) * i + val * j) / (i + j);
+                A(jj) = val;
+            }
+            curlen = maxj - minj;
+            if (lastlen > curlen) {
+                // Set some carried-over elements to 1.
+                long long int end = cxx::min(maxj - minj + (lastlen - curlen), lenA);
+                for (long long int k = maxj - minj; k < end; ++k) {
+                    A(k) = 1.0;
+                }
+            }
+        }
+        return A(maxj - minj - 1);
+    }
+
+    template <typename WorkMat>
+    XSF_HOST_DEVICE inline double
+    ks_2samp_count_paths_outside_method(long long int m, long long int n, long long int g, long long int h, WorkMat B) {
+        // Number of integer lattice paths from (0, 0) to (m, n) that at some
+        // point (x, y) satisfy m*y <= n*x - h*g. The result may overflow, so
+        // the caller must check that it is finite.
+        //
+        // B(j) holds B(x_j, j), the number of paths from (0, 0) to (x_j, j)
+        // that have not previously reached the boundary. It needs
+        // min(m, n) entries.
+        if (m < n) {
+            long long int t = m;
+            m = n;
+            n = t;
+        }
+        long long int mg = m / g;
+        long long int ng = n / g;
+
+        // Only the x values where n*x/m + ng*h crosses an integer are checked.
+        long long int lxj = n + ks_2samp_floordiv(mg - h, mg);
+        if (lxj <= 0) {
+            return binom(static_cast<double>(m + n), static_cast<double>(n));
+        }
+        auto xj = [=](long long int j) { return (h + mg * j + ng - 1) / ng; };
+
+        B(0) = 1.0;
+        for (long long int j = 1; j < lxj; ++j) {
+            long long int xjj = xj(j);
+            double Bj = binom(static_cast<double>(xjj + j), static_cast<double>(j));
+            for (long long int i = 0; i < j; ++i) {
+                Bj -= binom(static_cast<double>(xjj - xj(i) + j - i), static_cast<double>(j - i)) * B(i);
+            }
+            B(j) = Bj;
+        }
+        // Multiply by the number of path extensions from (x_j, j) to (m, n).
+        double num_paths = 0.0;
+        for (long long int j = 0; j < lxj; ++j) {
+            num_paths += B(j) * binom(static_cast<double>((m - xj(j)) + (n - j)), static_cast<double>(n - j));
+        }
+        return num_paths;
+    }
+
+    XSF_HOST_DEVICE inline double ks_2samp_prob_outside_square(long long int n, long long int h) {
+        // Proportion of paths that pass outside the lines x - y = +/-h, for m == n:
+        // 2 * (binom(2n, n-h) - binom(2n, n-2h) + binom(2n, n-3h) - ...) / binom(2n, n).
+        // To avoid subtractive cancellation, each term is divided by
+        // binom(2n, n) and the sum is evaluated with a Horner-like scheme:
+        // P = 2 * A0 * (1 - A1*(1 - A2*(1 - A3*(1 - A4*(...))))).
+        double P = 0.0;
+        long long int k = static_cast<long long int>(cxx::floor(static_cast<double>(n) / h));
+        while (k >= 0) {
+            double p1 = 1.0;
+            for (long long int j = 0; j < h; ++j) {
+                p1 = (n - k * h - j) * p1 / (n + k * h + j + 1);
+            }
+            P = p1 * (1.0 - P);
+            k -= 1;
+        }
+        return 2 * P;
+    }
+
+} // namespace detail
+
+template <typename WorkMat>
+XSF_HOST_DEVICE inline double
+ks_2samp_exact(long long int n1, long long int n2, double d, bool two_sided, WorkMat work) {
+    // Exact p-value of the two-sample Kolmogorov-Smirnov statistic d for
+    // sample sizes n1 and n2: P(D >= d) if two_sided, otherwise the one-sided
+    // P(D+ >= d), which is the same for D-. d is first rounded to the nearest
+    // multiple of 1 / lcm(n1, n2).
+    //
+    // work is scratch space: an mdspan view of a 1d array of length at least
+    // min(n1, n2) + 1. Returns NaN if the exact calculation is not possible
+    // (overflow or a result outside [0, 1]); the caller should then fall back
+    // to the asymptotic distribution.
+    //
+    // Port of _attempt_exact_2kssamp from scipy.stats._stats_py, which follows
+    // Hodges' treatment of Drion/Gnedenko/Korolyuk.
+    //
+    // References:
+    // [1] J. L. Hodges Jr., "The Significance Probability of the Smirnov
+    //     Two-Sample Test", Arkiv for Matematik, 3(43), 469-486, 1958.
+    // [2] T. Viehmann, "Numerically more stable computation of the p-values
+    //     for the two-sample Kolmogorov-Smirnov test", arXiv:2102.08037, 2021.
+    if (n1 < 1 || n2 < 1 || cxx::isnan(d)) {
+        set_error("ks_2samp_exact", SF_ERROR_DOMAIN, NULL);
+        return cxx::numeric_limits<double>::quiet_NaN();
+    }
+    if (static_cast<long long int>(work.extent(0)) < cxx::min(n1, n2) + 1) {
+        set_error("ks_2samp_exact", SF_ERROR_MEMORY, "work.shape[-1] must be at least min(n1, n2) + 1");
+        return cxx::numeric_limits<double>::quiet_NaN();
+    }
+
+    long long int g = detail::ks_2samp_gcd(n1, n2);
+    long long int lcm = (n1 / g) * n2;
+    long long int h = static_cast<long long int>(detail::ks_2samp_round_half_even(d * lcm));
+    if (h == 0) {
+        return 1.0;
+    }
+
+    double prob;
+    if (two_sided) {
+        if (n1 == n2) {
+            prob = detail::ks_2samp_prob_outside_square(n1, h);
+        } else {
+            prob = detail::ks_2samp_outer_prob_inside_method(n1, n2, g, h, work);
+        }
+    } else {
+        if (n1 == n2) {
+            // binom(2n, n-h) / binom(2n, n), computed as a product to avoid
+            // roundoff error in binom.
+            prob = 1.0;
+            for (long long int j = 0; j < h; ++j) {
+                prob *= (n1 - j) / (n1 + j + 1.0);
+            }
+        } else {
+            double num_paths = detail::ks_2samp_count_paths_outside_method(n1, n2, g, h, work);
+            double bin = binom(static_cast<double>(n1 + n2), static_cast<double>(n1));
+            if (!cxx::isfinite(num_paths) || !cxx::isfinite(bin) || num_paths > bin) {
+                set_error("ks_2samp_exact", SF_ERROR_NO_RESULT, NULL);
+                return cxx::numeric_limits<double>::quiet_NaN();
+            }
+            prob = num_paths / bin;
+        }
+    }
+
+    if (!(prob >= 0.0 && prob <= 1.0)) {
+        set_error("ks_2samp_exact", SF_ERROR_NO_RESULT, NULL);
+        return cxx::numeric_limits<double>::quiet_NaN();
+    }
+    return prob;
 }
 
 } // namespace xsf

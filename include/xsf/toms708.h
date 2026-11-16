@@ -1,7 +1,7 @@
 /*
  *
- * This file accompanied with the header file cdflib.h is a C rewrite of
- * the Fortran code with the following as its original description:
+ * This file is a partial C rewrite designed to run on GPU of
+ * the cdflib Fortran code with the following as its original description:
  *
  * Cumulative distribution functions, inverses and parameters for
  * Beta, Binomial, Chi-square, noncentral Chi-square, F, noncentral F, Gamma,
@@ -55,10 +55,6 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
  *
- */
-
-/*
- *  Mathematical operations have been converted to run on CUDA via `cxx` and XSF_HOST_DEVICE.
  */
 
 #pragma once

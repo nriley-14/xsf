@@ -1,12 +1,10 @@
 #include "../testing_utils.h"
 #include <xsf/toms708.h>
 
-// xsf::toms708::bratio only supports b = 1/2 (what the Student's t CDF needs).
 TEST_CASE("toms708 bratio", "[bratio][xsf_tests]") {
     SECTION("regularized incomplete beta and its complement, b = 1/2") {
         // a, b, x, y = 1 - x, I_x(a, b), 1 - I_x(a, b)
         // Reference values computed with mpmath (dps=50), see mpmath.betainc(a, 0.5, 0, x, regularized=True).
-        // The rows with large a are the Student's t CDF at t = 3 for nu = 2a.
         using test_case = std::tuple<double, double, double, double, double, double>;
         auto [a, b, x, y, expected, expected_c] = GENERATE(
             test_case{1e-20, 0.5, 0.3, 0.7, 1.0, 2.4198702426718918e-20},
@@ -38,7 +36,6 @@ TEST_CASE("toms708 bratio", "[bratio][xsf_tests]") {
     }
 
     SECTION("unsupported or invalid arguments set the error flag") {
-        REQUIRE(xsf::toms708::bratio(2.0, 3.0, 0.5, 0.5).i1 == 8); // b != 1/2
         REQUIRE(xsf::toms708::bratio(0.0, 0.5, 0.0, 1.0).i1 == 6); // x = a = 0
     }
 

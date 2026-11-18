@@ -111,6 +111,9 @@ namespace toms708 {
     XSF_HOST_DEVICE inline double rlog1(double x);
     XSF_HOST_DEVICE inline double erf_toms(double x);
 
+    constexpr double algdiv_carr[6] = {0.833333333333333e-01,  -0.277777777760991e-02, 0.793650666825390e-03,
+                                       -0.595202931351870e-03, 0.837308034031215e-03,  -0.165322962780713e-02};
+
     XSF_HOST_DEVICE inline double algdiv(double a, double b) {
         //         Computation of ln(gamma(b)/gamma(a+b)) when b >= 8
         //
@@ -121,8 +124,6 @@ namespace toms708 {
         //
 
         double c, d, h, s11, s3, s5, s7, s9, t, u, v, w, x, x2;
-        double carr[6] = {0.833333333333333e-01,  -0.277777777760991e-02, 0.793650666825390e-03,
-                          -0.595202931351870e-03, 0.837308034031215e-03,  -0.165322962780713e-02};
 
         if (a > b) {
             h = b / a;
@@ -145,8 +146,12 @@ namespace toms708 {
 
         // Set w = del(b) - del(a + b)
         t = cxx::pow((1. / b), 2);
-        w = (((((carr[5] * s11) * t + carr[4] * s9) * t + carr[3] * s7) * t + carr[2] * s5) * t + carr[1] * s3) * t +
-            carr[0];
+        w = (((((algdiv_carr[5] * s11) * t + algdiv_carr[4] * s9) * t + algdiv_carr[3] * s7) * t +
+              algdiv_carr[2] * s5) *
+                 t +
+             algdiv_carr[1] * s3) *
+                t +
+            algdiv_carr[0];
         w *= c / b;
         // Combine the results
         u = d * alnrel(a / b);
@@ -154,11 +159,12 @@ namespace toms708 {
         return (u > v ? (w - v) - u : (w - u) - v);
     }
 
+    constexpr double alnrel_p[3] = {-0.129418923021993e+01, 0.405303492862024e+00, -0.178874546012214e-01};
+    constexpr double alnrel_q[3] = {-0.162752256355323e+01, 0.747811014037616e+00, -0.845104217945565e-01};
+
     XSF_HOST_DEVICE inline double alnrel(double a) {
         //    Evaluation of the function ln(1 + a)
 
-        double p[3] = {-0.129418923021993e+01, 0.405303492862024e+00, -0.178874546012214e-01};
-        double q[3] = {-0.162752256355323e+01, 0.747811014037616e+00, -0.845104217945565e-01};
         double t, t2, w;
 
         if (cxx::fabs(a) > 0.375) {
@@ -166,8 +172,8 @@ namespace toms708 {
         } else {
             t = a / (a + 2.);
             t2 = t * t;
-            w = ((p[2] * t2 + p[1]) * t2 + p[0]) * t2 + 1.;
-            w /= ((q[2] * t2 + q[1]) * t2 + q[0]) * t2 + 1.;
+            w = ((alnrel_p[2] * t2 + alnrel_p[1]) * t2 + alnrel_p[0]) * t2 + 1.;
+            w /= ((alnrel_q[2] * t2 + alnrel_q[1]) * t2 + alnrel_q[0]) * t2 + 1.;
             return 2 * t * w;
         }
     }
@@ -303,14 +309,15 @@ namespace toms708 {
         return e0 * t * u * ssum;
     }
 
+    constexpr double bcorr_carr[6] = {0.833333333333333e-01,  -0.277777777760991e-02, 0.793650666825390e-03,
+                                      -0.595202931351870e-03, 0.837308034031215e-03,  -0.165322962780713e-02};
+
     XSF_HOST_DEVICE inline double bcorr(double a0, double b0) {
         //    Evaluation of  del(a0) + del(b0) - del(a0 + b0)  where
         //    ln(gamma(a)) = (a - 0.5)*ln(a) - a + 0.5*ln(2*pi) + del(a).
         //    It is assumed that a0 >= 8 And b0 >= 8.
 
         double a, b, c, h, s11, s3, s5, s7, s9, t, w, x, x2;
-        double carr[6] = {0.833333333333333e-01,  -0.277777777760991e-02, 0.793650666825390e-03,
-                          -0.595202931351870e-03, 0.837308034031215e-03,  -0.165322962780713e-02};
 
         a = cxx::fmin(a0, b0);
         b = cxx::fmax(a0, b0);
@@ -326,12 +333,20 @@ namespace toms708 {
         s11 = 1. + (x + x2 * s9);
         // Set w = del(b) - del(a + b)
         t = cxx::pow((1. / b), 2);
-        w = (((((carr[5] * s11) * t + carr[4] * s9) * t + carr[3] * s7) * t + carr[2] * s5) * t + carr[1] * s3) * t +
-            carr[0];
+        w = (((((bcorr_carr[5] * s11) * t + bcorr_carr[4] * s9) * t + bcorr_carr[3] * s7) * t + bcorr_carr[2] * s5) *
+                 t +
+             bcorr_carr[1] * s3) *
+                t +
+            bcorr_carr[0];
         w *= c / b;
         // Compute  del(a) + w
         t = cxx::pow((1. / a), 2);
-        return ((((((carr[5]) * t + carr[4]) * t + carr[3]) * t + carr[2]) * t + carr[1]) * t + carr[0]) / a + w;
+        return ((((((bcorr_carr[5]) * t + bcorr_carr[4]) * t + bcorr_carr[3]) * t + bcorr_carr[2]) * t +
+                 bcorr_carr[1]) *
+                    t +
+                bcorr_carr[0]) /
+                   a +
+               w;
     }
 
     XSF_HOST_DEVICE inline double betaln(double a0, double b0) {
@@ -1203,6 +1218,23 @@ namespace toms708 {
     //
     //**********************************************************************
 
+    constexpr double erfc1_a[5] = {
+        .771058495001320e-04, -.133733772997339e-02, .323076579225834e-01, .479137145607681e-01, .128379167095513e+00
+    };
+    constexpr double erfc1_b[3] = {.301048631703895e-02, .538971687740286e-01, .375795757275549e+00};
+    constexpr double erfc1_p[8] = {-1.36864857382717e-07, 5.64195517478974e-01, 7.21175825088309e+00,
+                                   4.31622272220567e+01,  1.52989285046940e+02, 3.39320816734344e+02,
+                                   4.51918953711873e+02,  3.00459261020162e+02};
+    constexpr double erfc1_q[8] = {1.00000000000000e+00, 1.27827273196294e+01, 7.70001529352295e+01,
+                                   2.77585444743988e+02, 6.38980264465631e+02, 9.31354094850610e+02,
+                                   7.90950925327898e+02, 3.00459260956983e+02};
+    constexpr double erfc1_r[5] = {
+        2.10144126479064e+00, 2.62370141675169e+01, 2.13688200555087e+01, 4.65807828718470e+00, 2.82094791773523e-01
+    };
+    constexpr double erfc1_s[4] = {
+        9.41537750555460e+01, 1.87114811799590e+02, 9.90191814623914e+01, 1.80124575948747e+01
+    };
+
     XSF_HOST_DEVICE inline double erfc1(int ind, double x) {
         //    Evaluation of the complementary error function
         //
@@ -1211,19 +1243,6 @@ namespace toms708 {
 
         double ax, bot, t, top, result;
         double c = 0.564189583547756;
-        double a[5] = {
-            .771058495001320e-04, -.133733772997339e-02, .323076579225834e-01, .479137145607681e-01,
-            .128379167095513e+00
-        };
-        double b[3] = {.301048631703895e-02, .538971687740286e-01, .375795757275549e+00};
-        double p[8] = {-1.36864857382717e-07, 5.64195517478974e-01, 7.21175825088309e+00, 4.31622272220567e+01,
-                       1.52989285046940e+02,  3.39320816734344e+02, 4.51918953711873e+02, 3.00459261020162e+02};
-        double q[8] = {1.00000000000000e+00, 1.27827273196294e+01, 7.70001529352295e+01, 2.77585444743988e+02,
-                       6.38980264465631e+02, 9.31354094850610e+02, 7.90950925327898e+02, 3.00459260956983e+02};
-        double r[5] = {
-            2.10144126479064e+00, 2.62370141675169e+01, 2.13688200555087e+01, 4.65807828718470e+00, 2.82094791773523e-01
-        };
-        double s[4] = {9.41537750555460e+01, 1.87114811799590e+02, 9.90191814623914e+01, 1.80124575948747e+01};
 
         if (x <= -5.6) {
             return (ind == 0 ? 2.0 : (2 * cxx::exp(x * x)));
@@ -1238,20 +1257,28 @@ namespace toms708 {
 
         if (ax <= 0.5) {
             t = x * x;
-            top = (((((a[0]) * t + a[1]) * t + a[2]) * t + a[3]) * t + a[4]) + 1.0;
-            bot = (((b[0]) * t + b[1]) * t + b[2]) * t + 1.0;
+            top = (((((erfc1_a[0]) * t + erfc1_a[1]) * t + erfc1_a[2]) * t + erfc1_a[3]) * t + erfc1_a[4]) + 1.0;
+            bot = (((erfc1_b[0]) * t + erfc1_b[1]) * t + erfc1_b[2]) * t + 1.0;
             result = 0.5 + (0.5 - x * (top / bot));
             return (ind == 0 ? result : result * cxx::exp(t));
         } else if ((0.5 < ax) && (ax <= 4.0)) {
-            top =
-                (((((((p[0]) * ax + p[1]) * ax + p[2]) * ax + p[3]) * ax + p[4]) * ax + p[5]) * ax + p[6]) * ax + p[7];
-            bot =
-                (((((((q[0]) * ax + q[1]) * ax + q[2]) * ax + q[3]) * ax + q[4]) * ax + q[5]) * ax + q[6]) * ax + q[7];
+            top = (((((((erfc1_p[0]) * ax + erfc1_p[1]) * ax + erfc1_p[2]) * ax + erfc1_p[3]) * ax + erfc1_p[4]) * ax +
+                    erfc1_p[5]) *
+                       ax +
+                   erfc1_p[6]) *
+                      ax +
+                  erfc1_p[7];
+            bot = (((((((erfc1_q[0]) * ax + erfc1_q[1]) * ax + erfc1_q[2]) * ax + erfc1_q[3]) * ax + erfc1_q[4]) * ax +
+                    erfc1_q[5]) *
+                       ax +
+                   erfc1_q[6]) *
+                      ax +
+                  erfc1_q[7];
             result = top / bot;
         } else {
             t = cxx::pow(1 / x, 2);
-            top = (((r[0] * t + r[1]) * t + r[2]) * t + r[3]) * t + r[4];
-            bot = (((s[0] * t + s[1]) * t + s[2]) * t + s[3]) * t + 1.0;
+            top = (((erfc1_r[0] * t + erfc1_r[1]) * t + erfc1_r[2]) * t + erfc1_r[3]) * t + erfc1_r[4];
+            bot = (((erfc1_s[0] * t + erfc1_s[1]) * t + erfc1_s[2]) * t + erfc1_s[3]) * t + 1.0;
             result = (c - t * (top / bot)) / ax;
         }
         if (ind == 0) {
@@ -1313,19 +1340,21 @@ namespace toms708 {
         return result * (1. + a * s);
     }
 
+    constexpr double gam1_p[7] = {.577215664901533e+00, -.409078193005776e+00, -.230975380857675e+00,
+                                  .597275330452234e-01, .766968181649490e-02,  -.514889771323592e-02,
+                                  .589597428611429e-03};
+    constexpr double gam1_q[5] = {
+        .100000000000000e+01, .427569613095214e+00, .158451672430138e+00, .261132021441447e-01, .423244297896961e-02
+    };
+    constexpr double gam1_r[9] = {-.422784335098468e+00, -.771330383816272e+00, -.244757765222226e+00,
+                                  .118378989872749e+00,  .930357293360349e-03,  -.118290993445146e-01,
+                                  .223047661158249e-02,  .266505979058923e-03,  -.132674909766242e-03};
+    constexpr double gam1_s[2] = {.273076135303957e+00, .559398236957378e-01};
+
     XSF_HOST_DEVICE inline double gam1(double a) {
         //    Computation of 1/gamma(a+1) - 1  for -0.5 <= A <= 1.5
 
         double bot, d, t, top, w;
-        double p[7] = {.577215664901533e+00, -.409078193005776e+00, -.230975380857675e+00, .597275330452234e-01,
-                       .766968181649490e-02, -.514889771323592e-02, .589597428611429e-03};
-        double q[5] = {
-            .100000000000000e+01, .427569613095214e+00, .158451672430138e+00, .261132021441447e-01, .423244297896961e-02
-        };
-        double r[9] = {-.422784335098468e+00, -.771330383816272e+00, -.244757765222226e+00,
-                       .118378989872749e+00,  .930357293360349e-03,  -.118290993445146e-01,
-                       .223047661158249e-02,  .266505979058923e-03,  -.132674909766242e-03};
-        double s[2] = {.273076135303957e+00, .559398236957378e-01};
 
         d = a - 0.5;
         t = (d > 0 ? d - 0.5 : a);
@@ -1335,10 +1364,15 @@ namespace toms708 {
         }
 
         if (t < 0) {
-            top =
-                ((((((((r[8]) * t + r[7]) * t + r[6]) * t + r[5]) * t + r[4]) * t + r[3]) * t + r[2]) * t + r[1]) * t +
-                r[0];
-            bot = (s[1] * t + s[0]) * t + 1.0;
+            top = ((((((((gam1_r[8]) * t + gam1_r[7]) * t + gam1_r[6]) * t + gam1_r[5]) * t + gam1_r[4]) * t +
+                     gam1_r[3]) *
+                        t +
+                    gam1_r[2]) *
+                       t +
+                   gam1_r[1]) *
+                      t +
+                  gam1_r[0];
+            bot = (gam1_s[1] * t + gam1_s[0]) * t + 1.0;
             w = top / bot;
             if (d > 0.0) {
                 return t * w / a;
@@ -1346,8 +1380,10 @@ namespace toms708 {
                 return a * ((w + 0.5) + 0.5);
             }
         }
-        top = ((((((p[6]) * t + p[5]) * t + p[4]) * t + p[3]) * t + p[2]) * t + p[1]) * t + p[0];
-        bot = ((((q[4]) * t + q[3]) * t + q[2]) * t + q[1]) * t + 1.0;
+        top =
+            ((((((gam1_p[6]) * t + gam1_p[5]) * t + gam1_p[4]) * t + gam1_p[3]) * t + gam1_p[2]) * t + gam1_p[1]) * t +
+            gam1_p[0];
+        bot = ((((gam1_q[4]) * t + gam1_q[3]) * t + gam1_q[2]) * t + gam1_q[1]) * t + 1.0;
         w = top / bot;
         if (d > 0.0) {
             return (t / a) * ((w - 0.5) - 0.5);
@@ -1356,13 +1392,14 @@ namespace toms708 {
         }
     }
 
+    constexpr double gamln_c[6] = {.833333333333333e-01,  -.277777777760991e-02, .793650666825390e-03,
+                                   -.595202931351870e-03, .837308034031215e-03,  -.165322962780713e-02};
+
     XSF_HOST_DEVICE inline double gamln(double a) {
         //    Evaluation of ln(gamma(a)) for positive a
 
         double t, w, d = .418938533204673;
         int i, n;
-        const double c[6] = {.833333333333333e-01,  -.277777777760991e-02, .793650666825390e-03,
-                             -.595202931351870e-03, .837308034031215e-03,  -.165322962780713e-02};
 
         if (a <= 0.8) {
             return gamln1(a) - cxx::log(a);
@@ -1384,34 +1421,44 @@ namespace toms708 {
             return gamln1(t - 1.) + cxx::log(w);
         }
         t = cxx::pow(1 / a, 2);
-        w = (((((c[5] * t + c[4]) * t + c[3]) * t + c[2]) * t + c[1]) * t + c[0]) / a;
+        w = (((((gamln_c[5] * t + gamln_c[4]) * t + gamln_c[3]) * t + gamln_c[2]) * t + gamln_c[1]) * t + gamln_c[0]) /
+            a;
         return (d + w) + (a - 0.5) * (cxx::log(a) - 1.);
     }
+
+    constexpr double gamln1_p[7] = {.577215664901533e+00,  .844203922187225e+00,  -.168860593646662e+00,
+                                    -.780427615533591e+00, -.402055799310489e+00, -.673562214325671e-01,
+                                    -.271935708322958e-02};
+    constexpr double gamln1_q[6] = {.288743195473681e+01, .312755088914843e+01, .156875193295039e+01,
+                                    .361951990101499e+00, .325038868253937e-01, .667465618796164e-03};
+    constexpr double gamln1_r[6] = {.422784335098467e+00, .848044614534529e+00, .565221050691933e+00,
+                                    .156513060486551e+00, .170502484022650e-01, .497958207639485e-03};
+    constexpr double gamln1_s[5] = {
+        .124313399877507e+01, .548042109832463e+00, .101552187439830e+00, .713309612391000e-02, .116165475989616e-03
+    };
 
     XSF_HOST_DEVICE inline double gamln1(double a) {
         //    Evaluation of ln(gamma(1 + a)) for -0.2 <= A <= 1.25
 
         double bot, top, w, x;
 
-        const double p[7] = {.577215664901533e+00,  .844203922187225e+00,  -.168860593646662e+00, -.780427615533591e+00,
-                             -.402055799310489e+00, -.673562214325671e-01, -.271935708322958e-02};
-        const double q[6] = {.288743195473681e+01, .312755088914843e+01, .156875193295039e+01,
-                             .361951990101499e+00, .325038868253937e-01, .667465618796164e-03};
-        const double r[6] = {.422784335098467e+00, .848044614534529e+00, .565221050691933e+00,
-                             .156513060486551e+00, .170502484022650e-01, .497958207639485e-03};
-        const double s[5] = {
-            .124313399877507e+01, .548042109832463e+00, .101552187439830e+00, .713309612391000e-02, .116165475989616e-03
-        };
-
         if (a < 0.6) {
-            top = ((((((p[6]) * a + p[5]) * a + p[4]) * a + p[3]) * a + p[2]) * a + p[1]) * a + p[0];
-            bot = ((((((q[5]) * a + q[4]) * a + q[3]) * a + q[2]) * a + q[1]) * a + q[0]) * a + 1.;
+            top = ((((((gamln1_p[6]) * a + gamln1_p[5]) * a + gamln1_p[4]) * a + gamln1_p[3]) * a + gamln1_p[2]) * a +
+                   gamln1_p[1]) *
+                      a +
+                  gamln1_p[0];
+            bot = ((((((gamln1_q[5]) * a + gamln1_q[4]) * a + gamln1_q[3]) * a + gamln1_q[2]) * a + gamln1_q[1]) * a +
+                   gamln1_q[0]) *
+                      a +
+                  1.;
             w = top / bot;
             return -a * w;
         } else {
             x = (a - 0.5) - 0.5;
-            top = (((((r[5]) * x + r[4]) * x + r[3]) * x + r[2]) * x + r[1]) * x + r[0];
-            bot = (((((s[4]) * x + s[3]) * x + s[2]) * x + s[1]) * x + s[0]) * x + 1.;
+            top = (((((gamln1_r[5]) * x + gamln1_r[4]) * x + gamln1_r[3]) * x + gamln1_r[2]) * x + gamln1_r[1]) * x +
+                  gamln1_r[0];
+            bot =
+                (((((gamln1_s[4]) * x + gamln1_s[3]) * x + gamln1_s[2]) * x + gamln1_s[1]) * x + gamln1_s[0]) * x + 1.;
             w = top / bot;
             return x * w;
         }
@@ -1526,6 +1573,18 @@ namespace toms708 {
         return gamln1(x - 1.) + cxx::log(x * (1. + x));
     }
 
+    constexpr double psi_p1[7] = {0.895385022981970e-02, 0.477762828042627e+01, 0.142441585084029e+03,
+                                  0.118645200713425e+04, 0.363351846806499e+04, 0.413810161269013e+04,
+                                  0.130560269827897e+04};
+    constexpr double psi_q1[6] = {0.448452573429826e+02, 0.520752771467162e+03, 0.221000799247830e+04,
+                                  0.364127349079381e+04, 0.190831076596300e+04, 0.691091682714533e-05};
+    constexpr double psi_p2[4] = {
+        -0.212940445131011e+01, -0.701677227766759e+01, -0.448616543918019e+01, -0.648157123766197e+00
+    };
+    constexpr double psi_q2[4] = {
+        0.322703493791143e+02, 0.892920700481861e+02, 0.546117738103215e+02, 0.777788548522962e+01
+    };
+
     XSF_HOST_DEVICE inline double psi(double xx) {
         //                    Evaluation of the digamma function
         //
@@ -1544,12 +1603,6 @@ namespace toms708 {
         //    A.H. Morris (nswc).
 
         double aug, den, dx0, sgn, upper, w, x, xmax1, xmx0, xsmall, z;
-        double p1[7] = {0.895385022981970e-02, 0.477762828042627e+01, 0.142441585084029e+03, 0.118645200713425e+04,
-                        0.363351846806499e+04, 0.413810161269013e+04, 0.130560269827897e+04};
-        double q1[6] = {0.448452573429826e+02, 0.520752771467162e+03, 0.221000799247830e+04,
-                        0.364127349079381e+04, 0.190831076596300e+04, 0.691091682714533e-05};
-        double p2[4] = {-0.212940445131011e+01, -0.701677227766759e+01, -0.448616543918019e+01, -0.648157123766197e+00};
-        double q2[4] = {0.322703493791143e+02, 0.892920700481861e+02, 0.546117738103215e+02, 0.777788548522962e+01};
         int nq, i;
         dx0 = 1.461632144968362341262659542325721325;
         xmax1 = 4503599627370496.0;
@@ -1602,12 +1655,12 @@ namespace toms708 {
         if (x <= 3.0) {
             // 50
             den = x;
-            upper = p1[0] * x;
+            upper = psi_p1[0] * x;
             for (i = 0; i < 5; i++) {
-                den = (den + q1[i]) * x;
-                upper = (upper + p1[i + 1]) * x;
+                den = (den + psi_q1[i]) * x;
+                upper = (upper + psi_p1[i + 1]) * x;
             }
-            den = (upper + p1[6]) / (den + q1[5]);
+            den = (upper + psi_p1[6]) / (den + psi_q1[5]);
             xmx0 = x - dx0;
             return (den * xmx0) + aug;
         } else {
@@ -1615,27 +1668,31 @@ namespace toms708 {
             if (x < xmax1) {
                 w = 1. / (x * x);
                 den = w;
-                upper = p2[0] * w;
+                upper = psi_p2[0] * w;
 
                 for (i = 0; i < 3; i++) {
-                    den = (den + q2[i]) * w;
-                    upper = (upper + p2[i + 1]) * w;
+                    den = (den + psi_q2[i]) * w;
+                    upper = (upper + psi_p2[i + 1]) * w;
                 }
-                aug += upper / (den + q2[3]) - 0.5 / x;
+                aug += upper / (den + psi_q2[3]) - 0.5 / x;
             }
             return aug + cxx::log(x);
         }
     }
 
+    constexpr double rexp_p[2] = {.914041914819518e-09, .238082361044469e-01};
+    constexpr double rexp_q[4] = {
+        -.499999999085958e+00, .107141568980644e+00, -.119041179760821e-01, .595130811860248e-03
+    };
+
     XSF_HOST_DEVICE inline double rexp(double x) {
         // Evaluation of exp(-x)*x**a/gamma(a)
 
-        double p[2] = {.914041914819518e-09, .238082361044469e-01};
-        double q[4] = {-.499999999085958e+00, .107141568980644e+00, -.119041179760821e-01, .595130811860248e-03};
         double w;
 
         if (cxx::fabs(x) <= 0.15) {
-            return x * (((p[1] * x + p[0]) * x + 1.) / ((((q[3] * x + q[2]) * x + q[1]) * x + q[0]) * x + 1.));
+            return x * (((rexp_p[1] * x + rexp_p[0]) * x + 1.) /
+                        ((((rexp_q[3] * x + rexp_q[2]) * x + rexp_q[1]) * x + rexp_q[0]) * x + 1.));
         } else {
             w = cxx::exp(x);
             if (x > 0.) {
@@ -1646,14 +1703,15 @@ namespace toms708 {
         }
     }
 
+    constexpr double rlog_p[3] = {.333333333333333, -.224696413112536, .620886815375787e-02};
+    constexpr double rlog_q[2] = {-.127408923933623e+01, .354508718369557};
+
     XSF_HOST_DEVICE inline double rlog(double x) {
         // Computation of  x - 1 - ln(x)
 
         double r, t, u, w, w1;
         double a = .566749439387324e-01;
         double b = .456512608815524e-01;
-        double p[3] = {.333333333333333, -.224696413112536, .620886815375787e-02};
-        double q[2] = {-.127408923933623e+01, .354508718369557};
 
         if ((x < 0.61) || (x > 1.57)) {
             return ((x - 0.5) - 0.5) - cxx::log(x);
@@ -1672,7 +1730,7 @@ namespace toms708 {
 
         r = u / (u + 2.);
         t = r * r;
-        w = ((p[2] * t + p[1]) * t + p[0]) / ((q[1] * t + q[0]) * t + 1.);
+        w = ((rlog_p[2] * t + rlog_p[1]) * t + rlog_p[0]) / ((rlog_q[1] * t + rlog_q[0]) * t + 1.);
         return 2. * t * (1. / (1. - r) - r * w) + w1;
     }
 
@@ -1712,44 +1770,62 @@ namespace toms708 {
         }
     }
 
+    constexpr double erf_toms_a[5] = {
+        .771058495001320e-04, -.133733772997339e-02, .323076579225834e-01, .479137145607681e-01, .128379167095513e+00
+    };
+    constexpr double erf_toms_b[3] = {.301048631703895e-02, .538971687740286e-01, .375795757275549e+00};
+    constexpr double erf_toms_p[8] = {-1.36864857382717e-07, 5.64195517478974e-01, 7.21175825088309e+00,
+                                      4.31622272220567e+01,  1.52989285046940e+02, 3.39320816734344e+02,
+                                      4.51918953711873e+02,  3.00459261020162e+02};
+    constexpr double erf_toms_q[8] = {1.00000000000000e+00, 1.27827273196294e+01, 7.70001529352295e+01,
+                                      2.77585444743988e+02, 6.38980264465631e+02, 9.31354094850610e+02,
+                                      7.90950925327898e+02, 3.00459260956983e+02};
+    constexpr double erf_toms_r[5] = {
+        2.10144126479064e+00, 2.62370141675169e+01, 2.13688200555087e+01, 4.65807828718470e+00, 2.82094791773523e-01
+    };
+    constexpr double erf_toms_s[4] = {
+        9.41537750555460e+01, 1.87114811799590e+02, 9.90191814623914e+01, 1.80124575948747e+01
+    };
+
     XSF_HOST_DEVICE inline double erf_toms(double x) {
         //    Evaluation of the real error function
 
         double ax, bot, t, top;
         double c = .564189583547756;
-        double a[5] = {
-            .771058495001320e-04, -.133733772997339e-02, .323076579225834e-01, .479137145607681e-01,
-            .128379167095513e+00
-        };
-        double b[3] = {.301048631703895e-02, .538971687740286e-01, .375795757275549e+00};
-        double p[8] = {-1.36864857382717e-07, 5.64195517478974e-01, 7.21175825088309e+00, 4.31622272220567e+01,
-                       1.52989285046940e+02,  3.39320816734344e+02, 4.51918953711873e+02, 3.00459261020162e+02};
-        double q[8] = {1.00000000000000e+00, 1.27827273196294e+01, 7.70001529352295e+01, 2.77585444743988e+02,
-                       6.38980264465631e+02, 9.31354094850610e+02, 7.90950925327898e+02, 3.00459260956983e+02};
-        double r[5] = {
-            2.10144126479064e+00, 2.62370141675169e+01, 2.13688200555087e+01, 4.65807828718470e+00, 2.82094791773523e-01
-        };
-        double s[4] = {9.41537750555460e+01, 1.87114811799590e+02, 9.90191814623914e+01, 1.80124575948747e+01};
 
         ax = cxx::fabs(x);
         if (ax <= 0.5) {
             t = x * x;
-            top = ((((a[0] * t + a[1]) * t + a[2]) * t + a[3]) * t + a[4]) + 1.0;
-            bot = ((b[0] * t + b[1]) * t + b[2]) * t + 1.0;
+            top =
+                ((((erf_toms_a[0] * t + erf_toms_a[1]) * t + erf_toms_a[2]) * t + erf_toms_a[3]) * t + erf_toms_a[4]) +
+                1.0;
+            bot = ((erf_toms_b[0] * t + erf_toms_b[1]) * t + erf_toms_b[2]) * t + 1.0;
             return x * (top / bot);
         }
         if (ax <= 4.0) {
-            top =
-                (((((((p[0]) * ax + p[1]) * ax + p[2]) * ax + p[3]) * ax + p[4]) * ax + p[5]) * ax + p[6]) * ax + p[7];
-            bot =
-                (((((((q[0]) * ax + q[1]) * ax + q[2]) * ax + q[3]) * ax + q[4]) * ax + q[5]) * ax + q[6]) * ax + q[7];
+            top = (((((((erf_toms_p[0]) * ax + erf_toms_p[1]) * ax + erf_toms_p[2]) * ax + erf_toms_p[3]) * ax +
+                     erf_toms_p[4]) *
+                        ax +
+                    erf_toms_p[5]) *
+                       ax +
+                   erf_toms_p[6]) *
+                      ax +
+                  erf_toms_p[7];
+            bot = (((((((erf_toms_q[0]) * ax + erf_toms_q[1]) * ax + erf_toms_q[2]) * ax + erf_toms_q[3]) * ax +
+                     erf_toms_q[4]) *
+                        ax +
+                    erf_toms_q[5]) *
+                       ax +
+                   erf_toms_q[6]) *
+                      ax +
+                  erf_toms_q[7];
             t = 0.5 + (0.5 - cxx::exp(-x * x) * (top / bot));
             return (x < 0 ? -t : t);
         }
         if (ax < 5.8) {
             t = cxx::pow(1 / x, 2);
-            top = (((r[0] * t + r[1]) * t + r[2]) * t + r[3]) * t + r[4];
-            bot = (((s[0] * t + s[1]) * t + s[2]) * t + s[3]) * t + 1.0;
+            top = (((erf_toms_r[0] * t + erf_toms_r[1]) * t + erf_toms_r[2]) * t + erf_toms_r[3]) * t + erf_toms_r[4];
+            bot = (((erf_toms_s[0] * t + erf_toms_s[1]) * t + erf_toms_s[2]) * t + erf_toms_s[3]) * t + 1.0;
             t = 0.5 + (0.5 - cxx::exp(-x * x) * (c - top / (x * x * bot)) / ax);
             return (x < 0 ? -t : t);
         }
